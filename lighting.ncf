@@ -1,0 +1,50 @@
+node_capability_file;
+LIN_language_version = "2.2";
+node lighting {
+	general {
+		LIN_protocol_version = "2.2";
+		supplier = 0x4854;
+		function = 0x7354;
+		variant  = 0;
+		bitrate = automatic min 10 kbps max 20 kbps;
+		sends_wake_up_signal = "no";
+	}
+	diagnostic {
+		NAD = 0x73;
+		diagnostic_class = 1;
+	}
+	frames {
+		subscribe lighting_frame {
+			length = 2;
+			signals {
+				lighting_state {
+					size       = 2;
+					init_value = 0;
+					offset 	   = 0;
+					signaling_encoding;
+				}
+			}
+		}
+		publish lighting_error_frame {
+			length = 1;
+			signals {
+				lighting_error_bit {
+					size = 1;
+					init_value = 0;
+					offset = 10;
+				}
+			}
+		}
+	}
+	encoding {
+		signaling_encoding {
+		 	logical_value, 0, "OFF";
+			logical_value, 1, "RIGHT";
+			logical_value, 2, "LEFT";
+			logical_value, 3, "HAZARDS";
+		}
+	}
+	status_management {
+		response_error = lighting_error_bit;
+	}
+}
