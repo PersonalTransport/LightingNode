@@ -7,7 +7,7 @@
 
 // CONFIG3
 #pragma config WPFP = WPFP63 // Write Protection Flash Page Segment Boundary (Highest Page (same as page 21))
-#pragma config SOSCSEL = SOSC // Secondary Oscillator Pin Mode Select (SOSC pins in Default (high drive-strength) Oscillator Mode)
+#pragma config SOSCSEL = IO // Secondary Oscillator Pin Mode Select (SOSC pins have digital I/O functions (RA4, RB4))
 #pragma config WUTSEL = LEG // Voltage Regulator Wake-up Time Select (Default regulator start-up time used)
 #pragma config WPDIS = WPDIS // Segment Write Protection Disable (Segmented code protection disabled)
 #pragma config WPCFG = WPCFGDIS // Write Protect Configuration Page Select (Last page and Flash Configuration words are unprotected)
@@ -37,6 +37,117 @@
 #include <xc.h>
 #include <lighting.h>
 
+enum lighting_state {
+    OFF,
+    RIGHT,
+    LEFT,
+    HAZARDS
+};
+
+void main_task()
+{
+    if (l_flg_tst_lighting_state()) {
+        l_flg_clr_lighting_state();
+        LATAbits.LATA1 = 0;
+        LATAbits.LATA2 = 0;
+    }
+}
+
+int main()
+{
+    // Initialize the LIN interface
+    if (l_sys_init())
+        return -1;
+
+    // Initialize the interface
+    if (l_ifc_init_UART1())
+        return -1;
+
+    // Set UART TX to interrupt level 6
+    // Set UART RX to interrupt level 6
+    // Set the timer used for break detection to interrupt level 7
+    struct l_irqmask irqmask = { 6, 6, 7 };
+    l_sys_irq_restore(irqmask);
+
+    T2CONbits.TCS = 0b0; //Timer2 Clock Source is Internal the clock (FOSC/2)
+    T2CONbits.T32 = 0b0; //16 bit mode
+    T2CONbits.TGATE = 0b0; //Gated time accumulation is disabled
+    T2CONbits.TCKPS = 0b01; //Setting pre-scaler to 8
+
+    TMR2 = 0x0000;
+    PR2 = 0xC7F3; //Setting the period of timer to about 100ms
+
+    IEC0bits.T2IE = 1;
+    IPC1bits.T2IP = 5;
+    IFS0bits.T2IF = 0;
+
+    T2CONbits.TON = 1; //Turning timer2 on
+
+    TRISAbits.RA1 = 0;
+    TRISAbits.RA2 = 0;
+
+    while (1) {
+        main_task();
+    }
+
+    return -1;
+}
+
+void __attribute__((interrupt, no_auto_psv)) _T2Interrupt()
+{
+    if (IFS0bits.T2IF) {
+        IFS0bits.T2IF = 0;
+        switch (l_u8_rd_lighting_state()) {
+        case OFF: {
+            LATAbits.LATA1 = 0;
+            LATAbits.LATA2 = 0;
+            break;
+        }
+        case RIGHT: {
+            LATAbits.LATA1 = ~LATAbits.LATA1;
+            break;
+        }
+        case LEFT: {
+            LATAbits.LATA2 = ~LATAbits.LATA2;
+            break;
+        }
+        case HAZARDS: {
+            LATAbits.LATA1 = ~LATAbits.LATA1;
+            LATAbits.LATA2 = ~LATAbits.LATA2;
+            break;
+        }
+        default: {
+            LATAbits.LATA1 = 0;
+            LATAbits.LATA2 = 0;
+        }
+        }
+    }
+}
+
+void __attribute__((interrupt, no_auto_psv)) _U1TXInterrupt()
+{
+    if (IFS0bits.U1TXIF) {
+        IFS0bits.U1TXIF = 0;
+
+        l_ifc_tx_UART1();
+
+        if (U1STAbits.FERR)
+            U1STAbits.FERR = 0;
+    }
+}
+
+void __attribute__((interrupt, no_auto_psv)) _U1RXInterrupt()
+{
+    if (IFS0bits.U1RXIF) {
+        IFS0bits.U1RXIF = 0;
+
+        l_ifc_rx_UART1();
+
+        if (U1STAbits.FERR)
+            U1STAbits.FERR = 0;
+    }
+}
+
 struct l_irqmask l_sys_irq_disable()
 {
     IEC0bits.U1RXIE = 0;
@@ -61,120 +172,4 @@ void l_sys_irq_restore(struct l_irqmask previous)
     IPC0bits.IC1IP = previous.t1_level;
     IFS0bits.IC1IF = 0;
     IEC0bits.IC1IE = 1;
-}
-
-enum lighting_state {
-    OFF,
-    RIGHT,
-    LEFT,
-    HAZARDS
-};
-
-void main_task()
-{
-    if(l_flg_tst_lighting_state()) {
-        l_flg_clr_lighting_state();
-        LATAbits.LATA1 = 0;
-        LATAbits.LATA2 = 0;
-    }
-}
-
-int main()
-{
-    //RA1
-    //RA2
-    //RA3
-    //RA4
-    //RB0
-    //RB1
-    //RB8
-    //RB9
-    //RB13
-    
-    // Initialize the LIN interface
-    if (l_sys_init())
-        return -1;
-
-    // Initialize the interface
-    if (l_ifc_init_UART1())
-        return -1;
-
-    struct l_irqmask irqmask = { 6,6, 7 };
-    l_sys_irq_restore(irqmask);
-    
-    T2CONbits.TCS = 0b0; //Timer2 Clock Source is Internal the clock (FOSC/2)
-    T2CONbits.T32 = 0b0; //16 bit mode
-    T2CONbits.TGATE = 0b0; //Gated time accumulation is disabled
-    T2CONbits.TCKPS = 0b01; //Setting pre-scaler to 8
-
-    TMR2 = 0x0000; //Clearing timer register
-    PR2 = 0xC7F3; //Setting the period of timer to about 100ms
-
-    IEC0bits.T2IE = 1;
-    IPC1bits.T2IP = 5;
-    IFS0bits.T2IF = 0;
-    
-    T2CONbits.TON = 1; //Turning timer2 on
-    
-    while (1) {
-        main_task();
-    }
-
-    return -1;
-}
-
-void __attribute__((interrupt,no_auto_psv)) _T2Interrupt() {
-    if(IFS0bits.T2IF) {
-        switch(l_u8_rd_lighting_state()) {
-            case OFF: {
-                LATAbits.LATA1 = 0;
-                LATAbits.LATA2 = 0;
-                break;
-            }
-            case RIGHT: {
-                LATAbits.LATA1 = ~LATAbits.LATA1;
-                break;
-            }
-            case LEFT: {
-                LATAbits.LATA2 = ~LATAbits.LATA2;
-                break;
-            }
-            case HAZARDS: {
-                LATAbits.LATA1 = ~LATAbits.LATA1;
-                LATAbits.LATA2 = ~LATAbits.LATA2;
-                break;
-            }
-            default: {
-                LATAbits.LATA1 = 0;
-                LATAbits.LATA2 = 0;
-            }
-        }
-        IFS0bits.T2IF = 0;
-    }
-}
-
-void __attribute__((interrupt, no_auto_psv)) _U1TXInterrupt()
-{
-    if (IFS0bits.U1TXIF) {
-        // Clear TX interrupt flag.
-        IFS0bits.U1TXIF = 0;
-
-        l_ifc_tx_UART1();
-
-        if (U1STAbits.FERR)
-            U1STAbits.FERR = 0;
-    }
-}
-
-void __attribute__((interrupt, no_auto_psv)) _U1RXInterrupt()
-{
-    if (IFS0bits.U1RXIF) {
-        // Clear RX interrupt flag.
-        IFS0bits.U1RXIF = 0;
-
-        l_ifc_rx_UART1();
-
-        if (U1STAbits.FERR)
-            U1STAbits.FERR = 0;
-    }
 }
