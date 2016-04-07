@@ -14,14 +14,20 @@ node lighting {
 		diagnostic_class = 1;
 	}
 	frames {
-		subscribe lighting_frame {
-			length = 2;
+		subscribe lighting_control_frame {
+			length = 1;
 			signals {
-				lighting_state {
+				signal_light_state {
 					size       = 2;
 					init_value = 0;
 					offset 	   = 0;
-					signaling_encoding;
+					signal_light_encoding;
+				}
+                head_light_state {
+					size       = 2;
+					init_value = 0;
+					offset 	   = 2;
+					head_light_encoding;
 				}
 			}
 		}
@@ -37,11 +43,16 @@ node lighting {
 		}
 	}
 	encoding {
-		signaling_encoding {
-		 	logical_value, 0, "OFF";
+		signal_light_encoding {
+			logical_value, 0, "OFF";
 			logical_value, 1, "RIGHT";
 			logical_value, 2, "LEFT";
 			logical_value, 3, "HAZARDS";
+		}
+        head_light_encoding {
+			logical_value, 0, "OFF";
+			logical_value, 1, "LOW_BEAMS";
+			logical_value, 2, "HIGH_BEAMS";
 		}
 	}
 	status_management {

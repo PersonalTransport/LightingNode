@@ -14,7 +14,7 @@
 #pragma config WPEND = WPENDMEM // Segment Write Protection End Page Select (Write Protect from WPFP to the last page of memory)
 
 // CONFIG2
-#pragma config POSCMOD = HS // Primary Oscillator Select (HS Oscillator mode selected)
+#pragma config POSCMOD = NONE // Primary Oscillator disabled
 #pragma config I2C1SEL = PRI // I2C1 Pin Select bit (Use default SCL1/SDA1 pins for I2C1 )
 #pragma config IOL1WAY = OFF // IOLOCK One-Way Set Enable (Once set, the IOLOCK bit cannot be cleared)
 #pragma config OSCIOFNC = OFF // OSCO Pin Configuration (OSCO pin functions as clock output (CLKO))
@@ -37,19 +37,46 @@
 #include <xc.h>
 #include <lighting.h>
 
-enum lighting_state {
-    OFF,
-    RIGHT,
-    LEFT,
-    HAZARDS
+enum signal_light_state {
+    SIGNAL_OFF,
+    SIGNAL_RIGHT,
+    SIGNAL_LEFT,
+    SIGNAL_HAZARDS
+};
+
+enum head_light_state {
+    HEADLIGHTS_OFF,
+    HEADLIGHTS_LOW_BEAMS,
+    HEADLIGHTS_HIGH_BEAMS
 };
 
 void main_task()
 {
-    if (l_flg_tst_lighting_state()) {
-        l_flg_clr_lighting_state();
+    if (l_flg_tst_signal_light_state()) {
         LATAbits.LATA1 = 0;
         LATAbits.LATA2 = 0;
+        l_flg_clr_signal_light_state();
+    }
+
+    if (l_flg_tst_head_light_state()) {
+        switch ((enum head_light_state)l_u8_rd_head_light_state()) {
+        case HEADLIGHTS_OFF: {
+            LATAbits.LATA3 = 0;
+            LATAbits.LATA4 = 0;
+            break;
+        }
+        case HEADLIGHTS_LOW_BEAMS: {
+            LATAbits.LATA3 = 1;
+            LATAbits.LATA4 = 0;
+            break;
+        }
+        case HEADLIGHTS_HIGH_BEAMS: {
+            LATAbits.LATA3 = 1;
+            LATAbits.LATA4 = 1;
+            break;
+        }
+        }
+        l_flg_clr_head_light_state();
     }
 }
 
@@ -72,10 +99,10 @@ int main()
     T2CONbits.TCS = 0b0; //Timer2 Clock Source is Internal the clock (FOSC/2)
     T2CONbits.T32 = 0b0; //16 bit mode
     T2CONbits.TGATE = 0b0; //Gated time accumulation is disabled
-    T2CONbits.TCKPS = 0b01; //Setting pre-scaler to 8
+    T2CONbits.TCKPS = 0b10; //Setting pre-scaler to 8
 
     TMR2 = 0x0000;
-    PR2 = 0xC7F3; //Setting the period of timer to about 100ms
+    PR2 = 0x3333;
 
     IEC0bits.T2IE = 1;
     IPC1bits.T2IP = 5;
@@ -83,8 +110,10 @@ int main()
 
     T2CONbits.TON = 1; //Turning timer2 on
 
-    TRISAbits.RA1 = 0;
-    TRISAbits.RA2 = 0;
+    TRISAbits.TRISA1 = 0;
+    TRISAbits.TRISA2 = 0;
+    TRISAbits.TRISA3 = 0;
+    TRISAbits.TRISA4 = 0;
 
     while (1) {
         main_task();
@@ -97,28 +126,24 @@ void __attribute__((interrupt, no_auto_psv)) _T2Interrupt()
 {
     if (IFS0bits.T2IF) {
         IFS0bits.T2IF = 0;
-        switch (l_u8_rd_lighting_state()) {
-        case OFF: {
+        switch ((enum signal_light_state)l_u8_rd_signal_light_state()) {
+        case SIGNAL_OFF: {
             LATAbits.LATA1 = 0;
             LATAbits.LATA2 = 0;
             break;
         }
-        case RIGHT: {
+        case SIGNAL_RIGHT: {
             LATAbits.LATA1 = ~LATAbits.LATA1;
             break;
         }
-        case LEFT: {
+        case SIGNAL_LEFT: {
             LATAbits.LATA2 = ~LATAbits.LATA2;
             break;
         }
-        case HAZARDS: {
+        case SIGNAL_HAZARDS: {
             LATAbits.LATA1 = ~LATAbits.LATA1;
             LATAbits.LATA2 = ~LATAbits.LATA2;
             break;
-        }
-        default: {
-            LATAbits.LATA1 = 0;
-            LATAbits.LATA2 = 0;
         }
         }
     }
