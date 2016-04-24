@@ -117,13 +117,15 @@ int main()
     T2CONbits.TGATE = 0b0; //Gated time accumulation is disabled
     T2CONbits.TCKPS = 0b10; //Setting pre-scaler to 64
 
+    // (64)*PR2/FCY = 1/2
+    // PR2/FCY = 1/128
+    // PR2 = FCY/128
     TMR2 = 0x0000;
-    PR2 = 15625;
+    PR2 = FCY / 128ul; // .5s delay
 
     IEC0bits.T2IE = 1;
     IPC1bits.T2IP = 5;
     IFS0bits.T2IF = 0;
-
     T2CONbits.TON = 1; //Turning timer2 on
 
     TRISAbits.TRISA0 = 0;
