@@ -14,15 +14,15 @@
 #pragma config WPEND = WPENDMEM // Segment Write Protection End Page Select (Write Protect from WPFP to the last page of memory)
 
 // CONFIG2
-#pragma config POSCMOD = HS // Primary Oscillator Select (HS Oscillator mode selected)
+#pragma config POSCMOD = NONE // Primary Oscillator Select (Primary Oscillator disabled)
 #pragma config I2C1SEL = PRI // I2C1 Pin Select bit (Use default SCL1/SDA1 pins for I2C1 )
 #pragma config IOL1WAY = OFF // IOLOCK One-Way Set Enable (The IOLOCK bit can be set and cleared using the unlock sequence)
 #pragma config OSCIOFNC = ON // OSCO Pin Configuration (OSCO pin functions as port I/O (RA3))
 #pragma config FCKSM = CSDCMD // Clock Switching and Fail-Safe Clock Monitor (Sw Disabled, Mon Disabled)
-#pragma config FNOSC = PRIPLL // Initial Oscillator Select (Primary Oscillator with PLL module (XTPLL, HSPLL, ECPLL))
-#pragma config PLL96MHZ = ON // 96MHz PLL Startup Select (96 MHz PLL Startup is enabled automatically on start-up)
-#pragma config PLLDIV = DIV3 // USB 96 MHz PLL Prescaler Select (Oscillator input divided by 3 (12 MHz input))
-#pragma config IESO = ON // Internal External Switchover (IESO mode (Two-Speed Start-up) enabled)
+#pragma config FNOSC = FRC // Initial Oscillator Select (Fast RC Oscillator (FRC))
+#pragma config PLL96MHZ = OFF // 96MHz PLL Startup Select (96 MHz PLL Startup is enabled by user in software( controlled with the PLLEN bit))
+#pragma config PLLDIV = NODIV // USB 96 MHz PLL Prescaler Select (Oscillator input used directly (4 MHz input))
+#pragma config IESO = OFF // Internal External Switchover (IESO mode (Two-Speed Start-up) disabled)
 
 // CONFIG1
 #pragma config WDTPS = PS32768 // Watchdog Timer Postscaler (1:32,768)
@@ -54,26 +54,26 @@ enum head_light_state {
 void main_task()
 {
     if (l_flg_tst_signal_light_state()) {
-        LATAbits.LATA1 = 0;
-        LATAbits.LATA2 = 0;
         l_flg_clr_signal_light_state();
+        LATAbits.LATA0 = 0;
+        LATAbits.LATA1 = 0;
     }
 
     if (l_flg_tst_head_light_state()) {
         switch ((enum head_light_state)l_u8_rd_head_light_state()) {
         case HEADLIGHTS_OFF: {
+            LATAbits.LATA2 = 0;
             LATAbits.LATA3 = 0;
-            LATAbits.LATA4 = 0;
             break;
         }
         case HEADLIGHTS_LOW_BEAMS: {
-            LATAbits.LATA3 = 1;
-            LATAbits.LATA4 = 0;
+            LATAbits.LATA2 = 1;
+            LATAbits.LATA3 = 0;
             break;
         }
         case HEADLIGHTS_HIGH_BEAMS: {
+            LATAbits.LATA2 = 1;
             LATAbits.LATA3 = 1;
-            LATAbits.LATA4 = 1;
             break;
         }
         }
@@ -95,7 +95,7 @@ int main()
     // Set UART RX to interrupt level 6
     struct l_irqmask irqmask = { 6, 6 };
     l_sys_irq_restore(irqmask);
-    
+
     l_bool configuration_ok = false;
     l_u16 configuration_timeout = 1000;
     do {
@@ -106,19 +106,19 @@ int main()
         __delay_ms(5);
         configuration_timeout--;
     } while (configuration_timeout || !configuration_ok);
-    
+
     if (!configuration_ok) {
         // Master did not configure this node.
         return -1;
     }
-    
+
     T2CONbits.TCS = 0b0; //Timer2 Clock Source is Internal the clock (FOSC/2)
     T2CONbits.T32 = 0b0; //16 bit mode
     T2CONbits.TGATE = 0b0; //Gated time accumulation is disabled
-    T2CONbits.TCKPS = 0b10; //Setting pre-scaler to 8
+    T2CONbits.TCKPS = 0b10; //Setting pre-scaler to 64
 
     TMR2 = 0x0000;
-    PR2 = 0x3333;
+    PR2 = 15625;
 
     IEC0bits.T2IE = 1;
     IPC1bits.T2IP = 5;
@@ -126,10 +126,10 @@ int main()
 
     T2CONbits.TON = 1; //Turning timer2 on
 
+    TRISAbits.TRISA0 = 0;
     TRISAbits.TRISA1 = 0;
     TRISAbits.TRISA2 = 0;
     TRISAbits.TRISA3 = 0;
-    TRISAbits.TRISA4 = 0;
 
     while (1) {
         main_task();
@@ -144,21 +144,21 @@ void __attribute__((interrupt, no_auto_psv)) _T2Interrupt()
         IFS0bits.T2IF = 0;
         switch ((enum signal_light_state)l_u8_rd_signal_light_state()) {
         case SIGNAL_OFF: {
+            LATAbits.LATA0 = 0;
             LATAbits.LATA1 = 0;
-            LATAbits.LATA2 = 0;
             break;
         }
         case SIGNAL_RIGHT: {
-            LATAbits.LATA1 = ~LATAbits.LATA1;
+            LATAbits.LATA0 = ~LATAbits.LATA0;
             break;
         }
         case SIGNAL_LEFT: {
-            LATAbits.LATA2 = ~LATAbits.LATA2;
+            LATAbits.LATA1 = ~LATAbits.LATA1;
             break;
         }
         case SIGNAL_HAZARDS: {
+            LATAbits.LATA0 = ~LATAbits.LATA0;
             LATAbits.LATA1 = ~LATAbits.LATA1;
-            LATAbits.LATA2 = ~LATAbits.LATA2;
             break;
         }
         }
