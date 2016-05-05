@@ -34,9 +34,9 @@
 #pragma config GCP = OFF // General Segment Code Protect (Code protection is disabled)
 #pragma config JTAGEN = OFF // JTAG Port Enable (JTAG port is disabled)
 
-#include <xc.h>
 #include <libpic30.h>
 #include <lighting.h>
+#include <xc.h>
 
 enum signal_light_state {
     SIGNAL_OFF,
