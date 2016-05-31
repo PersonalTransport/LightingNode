@@ -128,10 +128,10 @@ int main()
     IFS0bits.T2IF = 0;
     T2CONbits.TON = 1; //Turning timer2 on
 
-    TRISAbits.TRISA0 = 0;
-    TRISAbits.TRISA1 = 0;
     TRISAbits.TRISA2 = 0;
     TRISAbits.TRISA3 = 0;
+    TRISAbits.TRISA4 = 0;
+    TRISBbits.TRISB5 = 0;
 
     while (1) {
         main_task();
@@ -146,21 +146,21 @@ void __attribute__((interrupt, no_auto_psv)) _T2Interrupt()
         IFS0bits.T2IF = 0;
         switch ((enum signal_light_state)l_u8_rd_signal_light_state()) {
         case SIGNAL_OFF: {
-            LATAbits.LATA0 = 0;
-            LATAbits.LATA1 = 0;
+            LATBbits.LATB5 = 0;
+            LATAbits.LATA4 = 0;
             break;
         }
         case SIGNAL_RIGHT: {
-            LATAbits.LATA0 = ~LATAbits.LATA0;
+            LATBbits.LATB5 = ~LATBbits.LATB5;
             break;
         }
         case SIGNAL_LEFT: {
-            LATAbits.LATA1 = ~LATAbits.LATA1;
+            LATAbits.LATA4 = ~LATAbits.LATA4;
             break;
         }
         case SIGNAL_HAZARDS: {
-            LATAbits.LATA0 = ~LATAbits.LATA0;
-            LATAbits.LATA1 = ~LATAbits.LATA1;
+            LATBbits.LATB5 = ~LATBbits.LATB5;
+            LATAbits.LATA4 = ~LATAbits.LATA4;
             break;
         }
         }
